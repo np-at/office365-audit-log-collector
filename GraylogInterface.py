@@ -70,39 +70,37 @@ class GraylogInterface(object):
             sock.close()
 
     @staticmethod
-    def nv_formatter(jsonContent: dict):
+    def nv_formatter(json_content):
         """
-
-        :type jsonContent: dict
+        Flattens {Name: name, Value: value} objects into { name: value } for easier parsing by graylog
+        :param json_content: dict
         :returns dict
         """
-        for i in jsonContent:
-            if type(jsonContent[i]) == list:
-                propNameToReplace=i
-                newProp = {}
-                print(f'this is a list: {i}')
-                for y in jsonContent[i]:
+        for i in json_content:
+            if type(json_content[i]) == list:
+                prop_name_to_replace = i
+                new_prop = {}
+                for y in json_content[i]:
                     if type(y) == dict:
-                        print(f'y is a list: {y}')
-                        newPropPropName = None
-                        newPropPropValue = []
+                        new_prop_prop_name = None
+                        new_prop_prop_value = []
                         for prop in y:
                             if str.lower(prop) == 'name':
-                                newPropPropName = y[prop]
+                                new_prop_prop_name = y[prop]
                             elif str.lower(prop) == 'value':
                                 if len(y) == 2:
-                                    newPropPropValue.append(y[prop])
+                                    new_prop_prop_value.append(y[prop])
                                 else:
-                                    newPropPropValue.append({prop: y[prop]})
+                                    new_prop_prop_value.append({prop: y[prop]})
                             else:
-                                newPropPropValue.append({prop: y[prop]})
+                                new_prop_prop_value.append({prop: y[prop]})
 
-                        if newPropPropName:
-                            if len(newPropPropValue) == 1:
-                                newProp[newPropPropName] = newPropPropValue[0]
+                        if new_prop_prop_name:
+                            if len(new_prop_prop_value) == 1:
+                                new_prop[new_prop_prop_name] = new_prop_prop_value[0]
                             else:
-                                newProp[newPropPropName] = newPropPropValue
+                                new_prop[new_prop_prop_name] = new_prop_prop_value
 
-                if len(newProp) >= 1:
-                    jsonContent[propNameToReplace] = newProp
-        return jsonContent
+                if len(new_prop) >= 1:
+                    json_content[prop_name_to_replace] = new_prop
+        return json_content
