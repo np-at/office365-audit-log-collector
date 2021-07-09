@@ -15,10 +15,11 @@ import ApiConnection
 class AuditLogCollector(ApiConnection.ApiConnection):
 
     def __init__(self, output_path, content_types, *args, graylog_address=None, graylog_port=None, graylog_output=False,
-                 file_output=False, **kwargs):
+                 file_output=False, graylog_formatter=False, **kwargs):
         """
         Object that can retrieve all available content blobs for a list of content types and then retrieve those
         blobs and output them to a file or Graylog input (i.e. send over a socket).
+        :param graylog_formatter: bool whether to flatten out Name/Value objects before sending to graylog
         :param output_path: path to output retrieved logs to (None=no file output) (string)
         :param content_types: list of content types to retrieve (e.g. 'Audit.Exchange', 'Audit.Sharepoint')
         :param graylog_address: IP/Hostname of Graylog server to output audit logs to (str)
@@ -33,7 +34,8 @@ class AuditLogCollector(ApiConnection.ApiConnection):
         self._known_content = {}
         if self.graylog_output:
             self._graylog_interface = GraylogInterface.GraylogInterface(graylog_address=graylog_address,
-                                                                        graylog_port=graylog_port)
+                                                                        graylog_port=graylog_port,
+                                                                        use_nv_formatter=graylog_formatter)
         self.blobs_to_collect = deque()
         self.monitor_thread = threading.Thread()
         self.retrieve_available_content_threads = deque()
@@ -96,17 +98,20 @@ class AuditLogCollector(ApiConnection.ApiConnection):
             current_time = datetime.datetime.now(datetime.timezone.utc)
             end_time = str(current_time).replace(' ', 'T').rsplit('.', maxsplit=1)[0]
             start_time = str(current_time - datetime.timedelta(hours=1)).replace(' ', 'T').rsplit('.', maxsplit=1)[0]
-            response = self.make_api_request(url='subscriptions/content?contentType={0}&startTime={1}&endTime={2}'.format(
-                content_type, start_time, end_time))
+            response = self.make_api_request(
+                url='subscriptions/content?contentType={0}&startTime={1}&endTime={2}'.format(
+                    content_type, start_time, end_time))
             self.blobs_to_collect += response.json()
             while 'NextPageUri' in response.headers.keys() and response.headers['NextPageUri']:
-                logging.log(level=logging.DEBUG, msg='Getting next page of content for type: "{0}"'.format(content_type))
+                logging.log(level=logging.DEBUG,
+                            msg='Getting next page of content for type: "{0}"'.format(content_type))
                 self.blobs_to_collect += response.json()
                 response = self.make_api_request(url=response.headers['NextPageUri'], append_url=False)
             logging.log(level=logging.DEBUG, msg='Got {0} content blobs of type: "{1}"'.format(
                 len(self.blobs_to_collect), content_type))
         except Exception as e:
-            logging.log(level=logging.DEBUG, msg="Error while get_available_content: {0} : {1}".format(content_type, str(e)))
+            logging.log(level=logging.DEBUG,
+                        msg="Error while get_available_content: {0} : {1}".format(content_type, str(e)))
         finally:
             self.content_types.remove(content_type)
             self.content_available.release()
@@ -214,14 +219,16 @@ class AuditLogCollector(ApiConnection.ApiConnection):
         return self._known_content
 
 
+
+
 if __name__ == "__main__":
 
     description = \
-    """
-    Retrieve audit log contents from Office 365 API and save to file or Graylog.
-    Example: Retrieve all available content and send it to Graylog (using mock ID's and keys):
-    "AuditLogCollector.py 123 456 789 --general --exchange --azure_ad --sharepoint --dlp -g -gA 10.10.10.1 -gP 5000
-    """
+        """
+        Retrieve audit log contents from Office 365 API and save to file or Graylog.
+        Example: Retrieve all available content and send it to Graylog (using mock ID's and keys):
+        "AuditLogCollector.py 123 456 789 --general --exchange --azure_ad --sharepoint --dlp -g -gA 10.10.10.1 -gP 5000
+        """
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('tenant_id', type=str, help='Tenant ID of Azure AD', action='store')
     parser.add_argument('client_key', type=str, help='Client key of Azure application', action='store')
@@ -245,6 +252,7 @@ if __name__ == "__main__":
                         dest='graylog_addr')
     parser.add_argument('-gP', metavar='graylog_port', type=str, help='Port of graylog server.', action='store',
                         dest='graylog_port')
+    parser.add_argument('-gF', help='Convert {Name: xxx, Value: xxx } property lists to dict before sending to graylog', action='store_true', dest='graylog_formatter')
     parser.add_argument('-d', action='store_true', dest='debug_logging',
                         help='Enable debug logging (generates large log files and decreases performance).')
     args = parser.parse_args()

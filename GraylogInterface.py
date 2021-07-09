@@ -7,8 +7,9 @@ import threading
 
 class GraylogInterface(object):
 
-    def __init__(self, graylog_address, graylog_port):
+    def __init__(self, graylog_address, graylog_port, use_nv_formatter=False):
 
+        self.use_nv_formatter = use_nv_formatter
         self.gl_address = graylog_address
         self.gl_port = graylog_port
         self.monitor_thread = None
@@ -54,6 +55,9 @@ class GraylogInterface(object):
         otherwise Graylog will interpret it as a single large message.
         :param msg: dict
         """
+        if self.use_nv_formatter:
+            msg = self.nv_formatter(msg)
+
         msg_string = json.dumps(msg)
         if not msg_string:
             return
@@ -64,3 +68,41 @@ class GraylogInterface(object):
             sock.close()
         else:
             sock.close()
+
+    @staticmethod
+    def nv_formatter(jsonContent: dict):
+        """
+
+        :type jsonContent: dict
+        :returns dict
+        """
+        for i in jsonContent:
+            if type(jsonContent[i]) == list:
+                propNameToReplace=i
+                newProp = {}
+                print(f'this is a list: {i}')
+                for y in jsonContent[i]:
+                    if type(y) == dict:
+                        print(f'y is a list: {y}')
+                        newPropPropName = None
+                        newPropPropValue = []
+                        for prop in y:
+                            if str.lower(prop) == 'name':
+                                newPropPropName = y[prop]
+                            elif str.lower(prop) == 'value':
+                                if len(y) == 2:
+                                    newPropPropValue.append(y[prop])
+                                else:
+                                    newPropPropValue.append({prop: y[prop]})
+                            else:
+                                newPropPropValue.append({prop: y[prop]})
+
+                        if newPropPropName:
+                            if len(newPropPropValue) == 1:
+                                newProp[newPropPropName] = newPropPropValue[0]
+                            else:
+                                newProp[newPropPropName] = newPropPropValue
+
+                if len(newProp) >= 1:
+                    jsonContent[propNameToReplace] = newProp
+        return jsonContent
