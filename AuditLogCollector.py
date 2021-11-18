@@ -179,7 +179,11 @@ class AuditLogCollector(ApiConnection.ApiConnection):
         if group_files_by_date:
             with open(os.path.join(self.output_path, str(datetime.date.today().strftime("%Y-%m-%d-output.log"))),
                       'a') as ofile:
-                json.dump(obj=results, fp=ofile)
+                results_str: list[str] = []
+                for result in results:
+                    results_str.append(json.dumps(obj=result) + '\n')
+
+                ofile.writelines(results_str)
         else:
             with open(os.path.join(self.output_path, str(content_id)), 'w') as ofile:
                 json.dump(obj=results, fp=ofile)
