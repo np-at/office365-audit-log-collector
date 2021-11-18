@@ -167,16 +167,22 @@ class AuditLogCollector(ApiConnection.ApiConnection):
             if self.graylog_output:
                 self._graylog_interface.send_messages_to_graylog(*result)
 
-    def output_results_to_file(self, results, content_id):
+    def output_results_to_file(self, results, content_id, group_files_by_date: bool = True):
         """
         Dump received JSON messages to a file.
+        :param group_files_by_date: If true, use one file per day, appending
         :param results: retrieved JSON (dict)
         :param content_id: ID of the content blob to avoid duplicates (string)
         """
         if not os.path.exists(self.output_path):
             os.mkdir(self.output_path)
-        with open(os.path.join(self.output_path, str(content_id)), 'w') as ofile:
-            json.dump(obj=results, fp=ofile)
+        if group_files_by_date:
+            with open(os.path.join(self.output_path, str(datetime.date.today().strftime("%Y-%m-%d-output.log"))),
+                      'a') as ofile:
+                json.dump(obj=results, fp=ofile)
+        else:
+            with open(os.path.join(self.output_path, str(content_id)), 'w') as ofile:
+                json.dump(obj=results, fp=ofile)
 
     def _add_known_content(self, content_id, content_expiration):
         """
@@ -219,8 +225,6 @@ class AuditLogCollector(ApiConnection.ApiConnection):
         return self._known_content
 
 
-
-
 if __name__ == "__main__":
 
     description = \
@@ -252,7 +256,8 @@ if __name__ == "__main__":
                         dest='graylog_addr')
     parser.add_argument('-gP', metavar='graylog_port', type=str, help='Port of graylog server.', action='store',
                         dest='graylog_port')
-    parser.add_argument('-gF', help='Convert {Name: xxx, Value: xxx } property lists to dict before sending to graylog', action='store_true', dest='graylog_formatter')
+    parser.add_argument('-gF', help='Convert {Name: xxx, Value: xxx } property lists to dict before sending to graylog',
+                        action='store_true', dest='graylog_formatter')
     parser.add_argument('-d', action='store_true', dest='debug_logging',
                         help='Enable debug logging (generates large log files and decreases performance).')
     args = parser.parse_args()
